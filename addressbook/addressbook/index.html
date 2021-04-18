@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Addressbook App</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://unpkg.com/buefy/dist/buefy.min.css">
+    <script src="https://unpkg.com/buefy/dist/buefy.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@5.8.55/css/materialdesignicons.min.css">
+    <style>
+      [v-cloak] {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app" class="container" v-cloak>
+      <h1 class="title is-1">{{message}}</h1>
+      <div class="columns">
+        <div class="column is-one-third">
+          <form action="/contacts" method="POST" @submit.prevent="save">
+            <b-field label="First Name">
+              <b-input v-model="firstName" icon="account" placeholder="First name" required></b-input>
+            </b-field>
+            <b-field label="Last Name">
+              <b-input v-model="lastName" icon="account" placeholder="Last name" required></b-input>
+            </b-field>
+            <b-field label="Email">
+              <b-input
+                v-model="email"
+                type="email"
+                icon="email"
+                placeholder="Email"
+                :validation-message="emailValidationMessage"
+                required>
+              </b-input>
+            </b-field>
+            <b-field label="Phone number">
+              <b-input
+                v-model="phone"
+                icon="phone"
+                placeholder="Phone number"
+                :validation-message="phoneValidationMessage"
+                :hasMessage="!isPhoneValid"
+                pattern="^[0-9]{10,15}$"
+                required>
+              </b-input>
+            </b-field>
+            <b-button class="is-success" native-type="submit" :disabled="!isValid">Save</b-button>
+            <b-button @click="reset">Cancel</b-button>
+          </form>
+        </div>
+        <div class="column is-two-thirds">
+          <b-loading v-model="loading"></b-loading>
+          <h2 class="subtitle"> Contacts <b-tag type="is-info">{{ contacts.length || 0 }}</b-tag></h2>
+          <table class="table is-striped is-hoverable is-narrow is-fullwidth">
+            <thead>
+              <th>First Name</th>
+              <th>Last Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Actions</th>
+            </thead>
+            <tbody>
+              <tr v-for="(contact, index) in contacts" :key="contact._id">
+                <td>{{contact.firstName}}</td>
+                <td>{{contact.lastName}}</td>
+                <td>{{contact.email}}</td>
+                <td>{{contact.phone}}</td>
+                <td>
+                  <div class="buttons">
+                    <b-button type="is-info" size="is-small" @click="editContact(index)" :disabled="editing !== null || loading">Edit</b-button>
+                    <b-button type="is-danger" size="is-small" @click="deleteContact(index)" :disabled="editing !== null || loading">Delete</b-button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <script>
+      var app = new Vue({
+        el: '#app',
+        data: {
+          message: 'Addressbook App',
+          firstName: null,
+          lastName: null,
+          email: null,
+          phone: null,
+          loading: true,
+          saving: false,
+          editing: null,
+          emailRegex: new RegExp('^\\w+([\\.-]?\\w+)*@\\w+([\\.-]?\\w+)*(\\.\\w{2,3})+$'),
+          phoneRegex: new RegExp('^[0-9]{10,15}$'),
+          contacts: []
+        },
+        computed: {
+          json () {
+            return {
+              firstName: this.firstName,
+              lastName: this.lastName,
+              email: this.email,
+              phone: this.phone,
+            }
+          },
+          isEmailValid () {
+            return this.emailRegex.test(this.email)
+          },
+          emailValidationMessage () {
+            return this.isEmailValid ? null : 'Please enter a valid email address.'
+          },
+          isPhoneValid () {
+            return this.phoneRegex.test(this.phone)
+          },
+          phoneValidationMessage () {
+            return this.isPhoneValid ? null : 'Please enter a valid phone number.'
+          },
+          isValid () {
+            return this.firstName !== null && this.lastName !== null && this.isEmailValid && this.isPhoneValid
+          }
+        },
+        methods: {
+          load () {
+            this.loading = true
+            this.firstName = this.lastName = this.email = this.phone = null
+            axios.get('/contacts').then((result) => {
+              this.contacts = result.data
+            }).catch(error => {
+              this.notify(`Something went wrong: ${error}`, 'is-danger')
+            }).finally (() => {
+              this.loading = false
+            })
+          },
+          save () {
+            this.loading = true
+            const headers = {
+              'Content-Type': 'application/json'
+            }
+            if (this.editing === null) {
+              axios.post('/contacts', this.json, { headers }).then((result => {
+                this.contacts.push(result.data)
+                this.notify(`Contact: <b>${this.firstName} ${this.lastName}</b> has been saved!`, 'is-success')
+                this.reset()
+              })).catch(error => {
+                this.notify(`Something went wrong: ${error}`, 'is-danger')
+              }).finally(() => {
+                this.loading = false
+              })
+            } else {
+              axios.put(`/contacts/${this.contacts[this.editing]._id}/`, this.json, { headers }).then((result => {
+                this.contacts[this.editing].firstName = this.firstName
+                this.contacts[this.editing].lastName = this.lastName
+                this.contacts[this.editing].email = this.email
+                this.contacts[this.editing].phone = this.phone
+                this.notify(`Contact: <b>${this.firstName} ${this.lastName}</b> has been updated!`, 'is-success')
+                this.reset()
+              })).catch(error => {
+                this.notify(`Something went wrong: ${error}`, 'is-danger')
+              }).finally(() => {
+                this.loading = false
+              })
+            }
+          },
+          deleteContact (index) {
+            this.loading = true
+            const headers = {
+              'Content-Type': 'application/json'
+            }
+            const firstName = this.contacts[index].firstName
+            const lastName = this.contacts[index].lastName
+            axios.delete(`/contacts/${this.contacts[index]._id}`, { headers }).then((result => {
+              this.contacts.splice(index, 1)
+              this.notify(`Contact: <b>${firstName} ${lastName}</b> has been deleted!`, 'is-success')
+            })).catch(error => {
+              this.notify(`Something went wrong: ${error}`, 'is-danger')
+            }).finally(() => {
+              this.loading = false
+            })
+          },
+          editContact (index) {
+            this.editing = index
+            this.firstName = this.contacts[index].firstName
+            this.lastName = this.contacts[index].lastName
+            this.email = this.contacts[index].email
+            this.phone = this.contacts[index].phone
+          },
+          reset () {
+            this.editing = null
+            this.firstName = null
+            this.lastName = null
+            this.email = null
+            this.phone = null
+          },
+          notify(message, _type) {
+            this.$buefy.toast.open({
+                duration: 3000,
+                message: message,
+                position: 'is-bottom',
+                type: _type
+            })
+          },
+        },
+        mounted () {
+          this.load()
+        }
+      })
+    </script>
+  </body>
+</html>
