@@ -1,16 +1,13 @@
 {
-  "name": "quotes",
+  "name": "addressbook",
   "version": "1.0.0",
   "description": "CRUD quotes application.",
   "main": "server.js",
   "scripts": {
-    "start": "node pm2.js",
-    "restart": "node pm2.js crud-demo --update-env",
-    "dev": "nodemon index.js",
-    "sync": "node sync.js"
+    "start": "nodemon server.js"
   },
   "keywords": [
-    "quotes",
+    "addressbook",
     "crud",
     "mongo",
     "express"
